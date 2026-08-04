@@ -1,6 +1,7 @@
+# pnpm 11: allow native/postinstall scripts needed by Nuxt build
 allowBuilds:
-  '@parcel/watcher': false
-  '@tailwindcss/oxide': false
-  esbuild: false
-  unrs-resolver: false
-  vue-demi: false
+  '@parcel/watcher': true
+  '@tailwindcss/oxide': true
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true
