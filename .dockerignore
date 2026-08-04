@@ -1,0 +1,31 @@
+.git
+.github
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+node_modules
+coverage
+
+.env
+.env.*
+!.env.example
+
+*.md
+*.log
+
+# Local / scrape artifacts
+scripts/haonav-home-data.json
+scripts/haonav-icons-manifest.json
+public/uploads
+haonav.html
+haonav-nuxt.json
+tmp-*.json
+
+# IDE / OS
+.DS_Store
+.idea
+.fleet
+.vscode

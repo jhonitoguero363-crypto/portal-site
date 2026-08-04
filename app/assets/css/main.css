@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: "DM Sans", "Noto Sans SC", sans-serif;
+  --font-serif: "Newsreader", "Noto Sans SC", serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  --color-cream-50: #fdfbf7;
+  --color-cream-100: #f7f4ef;
+  --color-cream-200: #efe9df;
+  --color-cream-300: #e2d9cb;
+  --color-cream-400: #c9bba6;
+
+  --color-ink-50: #f4f2f0;
+  --color-ink-100: #e6e2de;
+  --color-ink-200: #c9c2ba;
+  --color-ink-300: #9c9288;
+  --color-ink-400: #6f655c;
+  --color-ink-500: #4a433c;
+  --color-ink-600: #2f2a25;
+  --color-ink-700: #1f1b17;
+  --color-ink-800: #1a1714;
+  --color-ink-900: #141210;
+  --color-ink-950: #0c0a09;
+
+  --color-orange-50: #fff4ed;
+  --color-orange-100: #ffe6d5;
+  --color-orange-200: #ffc9a8;
+  --color-orange-300: #ffa370;
+  --color-orange-400: #ff7540;
+  --color-orange-500: #f05a28;
+  --color-orange-600: #e0471a;
+  --color-orange-700: #ba3616;
+  --color-orange-800: #942d18;
+  --color-orange-900: #782817;
+  --color-orange-950: #41110a;
+}
+
+:root {
+  --ui-primary: var(--color-orange-500);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-cream-100);
+  color: var(--color-ink-800);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
