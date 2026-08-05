@@ -10,32 +10,15 @@ export default defineEventHandler(async () => {
     ORDER BY c.sort_order ASC, c.name ASC
   `)
 
-  const hotSites = await query<SiteRow[]>(`
+  const allSites = await query<SiteRow[]>(`
     SELECT s.*, c.name AS category_name
     FROM sites s
     LEFT JOIN categories c ON c.id = s.category_id
-    WHERE s.status = 'online' AND s.is_hot = 1
-    ORDER BY s.updated_at DESC
-    LIMIT 8
+    WHERE s.status = 'online'
+    ORDER BY c.sort_order ASC, c.name ASC, s.is_hot DESC, s.updated_at DESC
   `)
 
-  const aiSites = await query<SiteRow[]>(`
-    SELECT s.*, c.name AS category_name
-    FROM sites s
-    LEFT JOIN categories c ON c.id = s.category_id
-    WHERE s.status = 'online' AND s.category_id = 'ai' AND s.is_hot = 0
-    ORDER BY s.updated_at DESC
-    LIMIT 9
-  `)
-
-  const ideSites = await query<SiteRow[]>(`
-    SELECT s.*, c.name AS category_name
-    FROM sites s
-    LEFT JOIN categories c ON c.id = s.category_id
-    WHERE s.status = 'online' AND s.category_id IN ('ide', 'devtools')
-    ORDER BY s.updated_at DESC
-    LIMIT 12
-  `)
+  const hotSites = allSites.filter(s => Number(s.is_hot) === 1).slice(0, 8)
 
   const totals = await query<any[]>(`
     SELECT
@@ -46,6 +29,19 @@ export default defineEventHandler(async () => {
 
   const mappedCategories = categories.map(mapCategory)
   const allCount = Number(totals[0]?.online_sites || 0)
+
+  const sitesByCategory = new Map<string, ReturnType<typeof mapSite>[]>()
+  for (const row of allSites) {
+    const site = mapSite(row)
+    const list = sitesByCategory.get(site.categoryId) || []
+    list.push(site)
+    sitesByCategory.set(site.categoryId, list)
+  }
+
+  const sections = mappedCategories.map(cat => ({
+    category: cat,
+    sites: sitesByCategory.get(cat.id) || []
+  }))
 
   return {
     data: {
@@ -59,8 +55,7 @@ export default defineEventHandler(async () => {
         ...mappedCategories
       ],
       hotSites: hotSites.map(mapSite),
-      aiSites: aiSites.map(mapSite),
-      ideSites: ideSites.map(mapSite)
+      sections
     }
   }
 })

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { Category, Site } from '~/utils/types'
 
+interface HomeSection {
+  category: Category
+  sites: Site[]
+}
+
 const route = useRoute()
 const router = useRouter()
 
@@ -12,51 +17,43 @@ const { data, pending, error, refresh } = await useFetch<{
     stats: { totalSites: number, onlineSites: number, categoryCount: number }
     categories: Category[]
     hotSites: Site[]
-    aiSites: Site[]
-    ideSites: Site[]
+    sections: HomeSection[]
   }
 }>('/api/portal/home')
 
 const categories = computed(() => data.value?.data.categories || [])
 const hotSites = computed(() => data.value?.data.hotSites || [])
-const aiSites = computed(() => data.value?.data.aiSites || [])
-const ideSites = computed(() => data.value?.data.ideSites || [])
+const sections = computed(() => data.value?.data.sections || [])
 const stats = computed(() => data.value?.data.stats || { totalSites: 0, onlineSites: 0, categoryCount: 0 })
 
-const showOverview = computed(() => activeCategory.value === 'all' && !search.value.trim())
+const showOverview = computed(() => !search.value.trim())
 
-const categoryQuery = computed(() => ({
+const searchQuery = computed(() => ({
   status: 'online',
-  categoryId: activeCategory.value === 'all' ? undefined : activeCategory.value,
   q: search.value.trim() || undefined,
   page: 1,
   pageSize: 100
 }))
 
 const {
-  data: categoryData,
-  pending: categoryPending,
-  refresh: refreshCategory
+  data: searchData,
+  pending: searchPending,
+  refresh: refreshSearch
 } = await useFetch<{ data: Site[], meta: { total: number } }>('/api/sites', {
-  query: categoryQuery,
-  watch: [activeCategory, search],
+  query: searchQuery,
+  watch: [search],
   immediate: !showOverview.value
 })
 
-const categorySites = computed(() => categoryData.value?.data || [])
-const categoryTotal = computed(() => categoryData.value?.meta.total || 0)
+const searchSites = computed(() => searchData.value?.data || [])
+const searchTotal = computed(() => searchData.value?.meta.total || 0)
 
-const activeCategoryName = computed(() => {
-  if (activeCategory.value === 'all') return '全部网站'
-  return categories.value.find(c => c.id === activeCategory.value)?.name || '分类站点'
+watch(search, (q) => {
+  if (q.trim()) refreshSearch()
 })
 
 watch(activeCategory, (id) => {
   router.replace({ query: id === 'all' ? {} : { cat: id } })
-})
-
-watch(showOverview, (isOverview) => {
-  if (!isOverview) refreshCategory()
 })
 
 const todayLabel = computed(() => {
@@ -71,9 +68,123 @@ function openSite(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+const HEADER_OFFSET = 96 // sticky header + scroll-mt-24
+const sectionRefs = ref<Record<string, { reveal: () => void } | null>>({})
+const lockScrollSpy = ref(false)
+let unlockTimer: ReturnType<typeof setTimeout> | null = null
+
+function setSectionRef(id: string, el: { reveal: () => void } | null) {
+  if (el) sectionRefs.value[id] = el
+  else delete sectionRefs.value[id]
+}
+
+function unlockSpySoon() {
+  if (unlockTimer) clearTimeout(unlockTimer)
+  const done = () => {
+    lockScrollSpy.value = false
+    window.removeEventListener('scrollend', done)
+    if (unlockTimer) {
+      clearTimeout(unlockTimer)
+      unlockTimer = null
+    }
+  }
+  window.addEventListener('scrollend', done, { once: true })
+  unlockTimer = setTimeout(done, 1200)
+}
+
+async function scrollToCategory(id: string) {
+  lockScrollSpy.value = true
+
+  if (id === 'all') {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    unlockSpySoon()
+    return
+  }
+
+  // Reveal target and preceding sections so layout height is accurate
+  const list = sections.value
+  const targetIndex = list.findIndex(s => s.category.id === id)
+  if (targetIndex >= 0) {
+    for (let i = 0; i <= targetIndex; i++) {
+      sectionRefs.value[list[i].category.id]?.reveal()
+    }
+  } else {
+    sectionRefs.value[id]?.reveal()
+  }
+
+  await nextTick()
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+
+  const el = document.getElementById(`category-${id}`)
+  if (!el) {
+    unlockSpySoon()
+    return
+  }
+
+  const top = el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  unlockSpySoon()
+}
+
 function selectCategory(id: string) {
   activeCategory.value = id
+  if (search.value.trim()) {
+    search.value = ''
+    nextTick(() => {
+      nextTick(() => scrollToCategory(id))
+    })
+    return
+  }
+  scrollToCategory(id)
 }
+
+// Sync highlight while scrolling through sections
+let sectionObserver: IntersectionObserver | null = null
+
+onMounted(() => {
+  if (!import.meta.client) return
+
+  sectionObserver = new IntersectionObserver(
+    (entries) => {
+      if (search.value.trim() || lockScrollSpy.value) return
+      const visible = entries
+        .filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+      const first = visible[0]
+      if (!first?.target?.id?.startsWith('category-')) return
+      const id = first.target.id.replace('category-', '')
+      if (id && activeCategory.value !== id) {
+        activeCategory.value = id
+      }
+    },
+    { rootMargin: '-20% 0px -65% 0px', threshold: 0 }
+  )
+
+  watch(
+    sections,
+    (list) => {
+      sectionObserver?.disconnect()
+      nextTick(() => {
+        for (const section of list) {
+          const el = document.getElementById(`category-${section.category.id}`)
+          if (el) sectionObserver?.observe(el)
+        }
+      })
+    },
+    { immediate: true }
+  )
+
+  // Honor ?cat= on first load
+  if (activeCategory.value !== 'all') {
+    nextTick(() => scrollToCategory(activeCategory.value))
+  }
+})
+
+onBeforeUnmount(() => {
+  sectionObserver?.disconnect()
+  sectionObserver = null
+  if (unlockTimer) clearTimeout(unlockTimer)
+})
 
 const showSubmitModal = ref(false)
 const submitting = ref(false)
@@ -236,13 +347,17 @@ async function submitSite() {
           </button>
         </div>
 
-        <!-- 全部网站：概览分区 -->
+        <!-- 全部网站：按分类列出全部站点 -->
         <template v-else-if="showOverview">
-          <section class="mb-10">
+          <section
+            v-if="hotSites.length"
+            id="category-hot"
+            class="mb-10 scroll-mt-24"
+          >
             <div class="flex items-end justify-between mb-4">
               <div>
                 <p class="text-[11px] tracking-[0.16em] text-ink-400 mb-1">
-                  01
+                  HOT
                 </p>
                 <h2 class="text-xl font-semibold">
                   热门推荐
@@ -281,106 +396,18 @@ async function submitSite() {
             </div>
           </section>
 
-          <section class="mb-10">
-            <div class="flex items-end justify-between mb-4">
-              <div>
-                <p class="text-[11px] tracking-[0.16em] text-ink-400 mb-1">
-                  02
-                </p>
-                <h2 class="text-xl font-semibold">
-                  AI 编程工具
-                  <span class="ml-2 text-sm font-normal text-ink-400">{{ aiSites.length }}</span>
-                </h2>
-              </div>
-              <button
-                type="button"
-                class="text-sm text-ink-500 hover:text-orange-500"
-                @click="selectCategory('ai')"
-              >
-                查看全部 →
-              </button>
-            </div>
-            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <button
-                v-for="site in aiSites"
-                :key="site.id"
-                type="button"
-                class="text-left rounded-2xl bg-white border border-cream-300/80 p-3.5 hover:border-orange-300 hover:shadow-md transition-all"
-                @click="openSite(site.url)"
-              >
-                <div class="flex items-start gap-3">
-                  <SiteAvatar
-                    :icon="site.icon"
-                    :color="site.color"
-                    :letter="site.letter"
-                    size="size-9"
-                    rounded="rounded-lg"
-                    class="text-sm"
-                  />
-                  <div class="min-w-0">
-                    <h3 class="font-semibold text-sm truncate mb-0.5">
-                      {{ site.name }}
-                    </h3>
-                    <p class="text-xs text-ink-400 line-clamp-2">
-                      {{ site.description }}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </section>
-
-          <section class="mb-6">
-            <div class="flex items-end justify-between mb-4">
-              <div>
-                <p class="text-[11px] tracking-[0.16em] text-ink-400 mb-1">
-                  03
-                </p>
-                <h2 class="text-xl font-semibold">
-                  开发工具与 IDE
-                  <span class="ml-2 text-sm font-normal text-ink-400">{{ ideSites.length }}</span>
-                </h2>
-              </div>
-              <button
-                type="button"
-                class="text-sm text-ink-500 hover:text-orange-500"
-                @click="selectCategory('ide')"
-              >
-                查看全部 →
-              </button>
-            </div>
-            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <button
-                v-for="site in ideSites"
-                :key="site.id"
-                type="button"
-                class="text-left rounded-2xl bg-white border border-cream-300/80 p-3.5 hover:border-orange-300 hover:shadow-md transition-all"
-                @click="openSite(site.url)"
-              >
-                <div class="flex items-start gap-3">
-                  <SiteAvatar
-                    :icon="site.icon"
-                    :color="site.color"
-                    :letter="site.letter"
-                    size="size-9"
-                    rounded="rounded-lg"
-                    class="text-sm"
-                  />
-                  <div class="min-w-0">
-                    <h3 class="font-semibold text-sm truncate mb-0.5">
-                      {{ site.name }}
-                    </h3>
-                    <p class="text-xs text-ink-400 line-clamp-2">
-                      {{ site.description }}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </section>
+          <CategorySection
+            v-for="(section, index) in sections"
+            :key="section.category.id"
+            :ref="(el) => setSectionRef(section.category.id, el as any)"
+            :category="section.category"
+            :sites="section.sites"
+            :index="index"
+            @open="openSite"
+          />
         </template>
 
-        <!-- 分类 / 搜索结果 -->
+        <!-- 搜索结果 -->
         <section
           v-else
           class="mb-6"
@@ -388,15 +415,14 @@ async function submitSite() {
           <div class="flex items-end justify-between mb-4 gap-3">
             <div>
               <p class="text-[11px] tracking-[0.16em] text-ink-400 mb-1">
-                {{ activeCategory === 'all' ? 'SEARCH' : 'CATEGORY' }}
+                SEARCH
               </p>
               <h2 class="text-xl font-semibold">
-                {{ search.trim() ? `搜索：${search.trim()}` : activeCategoryName }}
-                <span class="ml-2 text-sm font-normal text-ink-400">{{ categoryTotal }}</span>
+                搜索：{{ search.trim() }}
+                <span class="ml-2 text-sm font-normal text-ink-400">{{ searchTotal }}</span>
               </h2>
             </div>
             <button
-              v-if="activeCategory !== 'all' || search.trim()"
               type="button"
               class="text-sm text-ink-500 hover:text-orange-500 shrink-0"
               @click="search = ''; selectCategory('all')"
@@ -406,23 +432,23 @@ async function submitSite() {
           </div>
 
           <div
-            v-if="categoryPending"
+            v-if="searchPending"
             class="py-16 text-center text-ink-400 text-sm"
           >
             加载中...
           </div>
           <div
-            v-else-if="!categorySites.length"
+            v-else-if="!searchSites.length"
             class="rounded-2xl border border-dashed border-cream-400 bg-cream-50 py-16 text-center text-ink-400 text-sm"
           >
-            该分类下暂无站点
+            未找到相关站点
           </div>
           <div
             v-else
             class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"
           >
             <button
-              v-for="site in categorySites"
+              v-for="site in searchSites"
               :key="site.id"
               type="button"
               class="text-left rounded-2xl bg-white border border-cream-300/80 p-3.5 hover:border-orange-300 hover:shadow-md transition-all"
