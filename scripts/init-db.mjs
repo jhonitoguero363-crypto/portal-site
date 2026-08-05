@@ -162,7 +162,7 @@ async function main() {
 
   await conn.query(
     `INSERT INTO admins (account, password, display_name)
-     VALUES ('admin@haonav.cn', 'test123', '管理员')
+     VALUES ('admin', '123456', '管理员')
      ON DUPLICATE KEY UPDATE password = VALUES(password), display_name = VALUES(display_name)`
   )
   console.log('Seeded admin account')

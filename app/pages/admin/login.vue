@@ -7,8 +7,8 @@ useSeoMeta({
   title: '后台登录 · 程序员导航网'
 })
 
-const account = ref('admin@haonav.cn')
-const password = ref('test123')
+const account = ref('')
+const password = ref('')
 const remember = ref(true)
 const showPassword = ref(false)
 const loading = ref(false)
@@ -38,9 +38,11 @@ async function onSubmit() {
   <div class="min-h-screen grid lg:grid-cols-2">
     <section class="relative bg-ink-800 text-white px-10 py-10 flex flex-col min-h-[420px] lg:min-h-screen">
       <div class="flex items-center gap-3 mb-auto">
-        <span class="size-10 rounded-xl bg-orange-500 text-white grid place-items-center">
-          <span class="font-bold text-sm">&lt;/&gt;</span>
-        </span>
+        <img
+          src="/logo.png"
+          alt="程序员导航网"
+          class="size-10 rounded-xl object-cover"
+        >
         <div>
           <p class="font-semibold text-[15px]">
             程序员导航网

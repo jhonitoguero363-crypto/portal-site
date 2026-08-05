@@ -27,7 +27,19 @@ const todayLabel = computed(() => {
   const dd = String(d.getDate()).padStart(2, '0')
   return `${days[d.getDay()]} · ${d.getFullYear()}.${mm}.${dd}`
 })
-</script>
+
+const loggingOut = ref(false)
+
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    await navigateTo('/admin/login')
+  } finally {
+    loggingOut.value = false
+  }
+}</script>
 
 <template>
   <div class="h-screen overflow-hidden bg-cream-100 text-ink-800 flex">
@@ -36,9 +48,11 @@ const todayLabel = computed(() => {
         to="/admin"
         class="flex items-center gap-3 px-2 mb-8 shrink-0"
       >
-        <span class="size-10 rounded-xl bg-orange-500 text-white grid place-items-center shadow-sm">
-          <span class="font-bold text-sm tracking-tight">&lt;/&gt;</span>
-        </span>
+        <img
+          src="/logo.png"
+          alt="程序员导航网"
+          class="size-10 rounded-xl object-cover shadow-sm"
+        >
         <span class="leading-tight">
           <span class="block font-semibold text-[15px]">程序员导航网</span>
           <span class="block text-[11px] tracking-[0.14em] text-ink-400 uppercase mt-0.5">后台管理 · ADMIN</span>
@@ -104,6 +118,19 @@ const todayLabel = computed(() => {
               name="i-lucide-bell"
               class="size-4"
             />
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full border border-cream-300 bg-white text-ink-600 text-sm font-medium hover:border-ink-300 hover:text-ink-800 transition-colors disabled:opacity-60"
+            :disabled="loggingOut"
+            aria-label="退出登录"
+            @click="logout"
+          >
+            <UIcon
+              name="i-lucide-log-out"
+              class="size-3.5"
+            />
+            {{ loggingOut ? '退出中...' : '退出登录' }}
           </button>
           <span class="size-9 rounded-full bg-orange-500 text-white grid place-items-center text-sm font-semibold">
             管

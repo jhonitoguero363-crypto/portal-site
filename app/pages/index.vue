@@ -146,9 +146,11 @@ async function submitSite() {
           class="flex items-center gap-2.5 shrink-0"
           @click="selectCategory('all')"
         >
-          <span class="size-9 rounded-xl bg-orange-500 text-white grid place-items-center shadow-sm">
-            <span class="font-bold text-xs tracking-tight">&lt;/&gt;</span>
-          </span>
+          <img
+            src="/logo.png"
+            alt="程序员导航网"
+            class="size-9 rounded-xl object-cover shadow-sm"
+          >
           <span class="font-semibold text-[15px]">程序员导航网</span>
         </NuxtLink>
 
